@@ -3,12 +3,21 @@ package com.ecommerce.auth_service.dto;
 import com.ecommerce.auth_service.enums.Role;
 import lombok.*;
 
-@Data
+@Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class AuthResponse {
+@Builder
+@Data
+public class VendorApprovalResponse {
+
+    private Long userId;
+
     private String username;
 
+    private String email;
+
     private Role role;
-    private String token;
+
+    private boolean approved;
 }

@@ -1,5 +1,6 @@
 package com.ecommerce.auth_service.security;
 
+import com.ecommerce.auth_service.enums.Role;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Service;
@@ -19,7 +20,7 @@ public class JwtService {
     // TOKEN GENERATION
     public String generateToken(
             String username,
-            String role) {
+            Role role) {
 
         Map<String, Object> claims =
                 new HashMap<>();

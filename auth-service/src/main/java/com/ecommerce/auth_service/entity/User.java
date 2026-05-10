@@ -1,5 +1,6 @@
 package com.ecommerce.auth_service.entity;
 
+import com.ecommerce.auth_service.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -24,11 +25,12 @@ public class User {
 
     private String password;
 
-    private String role;
+    @Enumerated(EnumType.STRING)
+    private Role role;
     private boolean emailVerified;
 
     private String verificationToken;
     private String otp;
-
+    private boolean approved;
     private LocalDateTime otpGeneratedTime;
 }

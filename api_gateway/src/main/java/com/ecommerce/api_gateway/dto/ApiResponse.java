@@ -1,10 +1,12 @@
-package com.ecommerce.auth_service.dto;
+package com.ecommerce.api_gateway.dto;
 
 import lombok.*;
 
-@Data
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
 @AllArgsConstructor
-@NoArgsConstructor@Builder
 public class ApiResponse<T> {
 
     private int responseCode;
@@ -14,7 +16,4 @@ public class ApiResponse<T> {
     private boolean success;
 
     private T responseData;
-
-    public ApiResponse(int i, String userRegisteredSuccessfully, boolean b) {
-    }
 }

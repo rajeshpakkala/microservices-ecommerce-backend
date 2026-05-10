@@ -2,14 +2,17 @@ package com.ecommerce.auth_service.service;
 
 import com.ecommerce.auth_service.dto.*;
 import com.ecommerce.auth_service.entity.User;
+import com.ecommerce.auth_service.enums.Role;
 import com.ecommerce.auth_service.repository.UserRepository;
 import com.ecommerce.auth_service.security.JwtService;
+import jakarta.ws.rs.*;
+import org.springframework.http.HttpStatus;
 import org.springframework.mail.MailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class AuthService {
@@ -52,7 +55,7 @@ public class AuthService {
 
         user.setEmailVerified(false);
 
-        user.setRole("CUSTOMER");
+        user.setRole(Role.CUSTOMER);
 
         User savedUser = repository.save(user);
 
@@ -77,7 +80,7 @@ public class AuthService {
     }
 
     // LOGIN
-    public ApiResponse<String> login(
+    public ApiResponse<AuthResponse> login(
             AuthRequest request) {
 
         User user = repository.findByUsername(
@@ -85,19 +88,58 @@ public class AuthService {
                 .orElseThrow(() ->
                         new RuntimeException("User Not Found"));
 
-        if (!user.isEmailVerified()) {
+        // VENDOR APPROVAL CHECK
+        if (user.getRole() == Role.VENDOR
+                && !user.isApproved()) {
+
+            throw new RuntimeException(
+                    "Vendor approval pending");
+        }
+
+        // EMAIL VERIFICATION CHECK
+        if (user.getRole() != Role.ADMIN
+                && !user.isEmailVerified()) {
+
             throw new RuntimeException(
                     "Please verify your email first");
         }
 
+        // PASSWORD CHECK
         boolean passwordMatches =
                 passwordEncoder.matches(
                         request.getPassword(),
                         user.getPassword());
 
         if (!passwordMatches) {
-            throw new RuntimeException("Invalid Password");
+
+            throw new RuntimeException(
+                    "Invalid Password");
         }
+
+        // ADMIN LOGIN -> DIRECT JWT
+        if (user.getRole() == Role.ADMIN) {
+
+            String token =
+                    jwtService.generateToken(
+                            user.getUsername(),
+                            user.getRole());
+
+            AuthResponse response =
+                    new AuthResponse(
+                            user.getUsername(),
+                            user.getRole(),
+                            token
+                    );
+
+            return new ApiResponse<>(
+                    200,
+                    "Admin Login Successful",
+                    true,
+                    response
+            );
+        }
+
+        // CUSTOMER/VENDOR -> OTP FLOW
 
         // GENERATE OTP
         String otp = generateOtp();
@@ -146,7 +188,7 @@ public class AuthService {
                 200,
                 "Email Verified Successfully",
                 true,
-                "Account verified successfully"
+                "Account verified successfully.Please try to login"
         );
     }
 
@@ -198,5 +240,141 @@ public class AuthService {
                 true,
                 response
         );
+    }
+
+    public ApiResponse<AuthResponse>
+    registerCustomer(RegisterRequest request) {
+
+        User user = new User();
+
+        user.setUsername(request.getUsername());
+
+        user.setEmail(request.getEmail());
+
+        user.setPassword(
+                passwordEncoder.encode(
+                        request.getPassword()));
+
+        user.setRole(Role.CUSTOMER);
+
+        user.setApproved(true);
+
+        user.setEmailVerified(false);
+
+        String token =
+                UUID.randomUUID().toString();
+
+        user.setVerificationToken(token);
+
+        User savedUser = repository.save(user);
+
+        mailService.sendVerificationMail(
+                savedUser.getEmail(),
+                token);
+
+        AuthResponse response =
+                new AuthResponse(
+                        savedUser.getUsername(),
+                        savedUser.getRole(),
+                        null
+                );
+
+        return new ApiResponse<>(
+                200,
+                "Customer Registered Successfully",
+                true,
+                response
+        );
+    }
+
+    public ApiResponse<AuthResponse>
+    registerVendor(RegisterRequest request) {
+
+        User user = new User();
+
+        user.setUsername(request.getUsername());
+
+        user.setEmail(request.getEmail());
+
+        user.setPassword(
+                passwordEncoder.encode(
+                        request.getPassword()));
+
+        user.setRole(Role.VENDOR);
+
+        // WAITING FOR ADMIN APPROVAL
+        user.setApproved(false);
+
+        user.setEmailVerified(false);
+
+        String token =
+                UUID.randomUUID().toString();
+
+        user.setVerificationToken(token);
+
+        User savedUser = repository.save(user);
+
+        mailService.sendVerificationMail(
+                savedUser.getEmail(),
+                token);
+
+        AuthResponse response =
+                new AuthResponse(
+                        savedUser.getUsername(),
+                        savedUser.getRole(),
+                        null
+                );
+
+        return new ApiResponse<>(
+                200,
+                "Vendor Registration Submitted",
+                true,
+                response
+        );
+    }
+
+    public ApiResponse<VendorApprovalResponse>
+    approveVendor(Long id) {
+
+        if (id == null) {
+
+            throw new IllegalArgumentException(
+                    "Id must be provided");
+        }
+
+        User vendor =
+                repository.findById(id)
+                        .orElseThrow(() ->
+                                new NotFoundException(
+                                        "Vendor Not Found with id: " + id));
+
+        if (vendor.getRole() != Role.VENDOR) {
+
+            throw new IllegalArgumentException(
+                    "User is not a vendor");
+        }
+
+        vendor.setApproved(true);
+
+        User savedVendor =
+                repository.save(vendor);
+
+        VendorApprovalResponse response =
+                VendorApprovalResponse.builder()
+                        .userId(savedVendor.getId())
+                        .username(savedVendor.getUsername())
+                        .email(savedVendor.getEmail())
+                        .role(savedVendor.getRole())
+                        .approved(savedVendor.isApproved())
+                        .build();
+
+        return ApiResponse
+                .<VendorApprovalResponse>builder()
+                .responseCode(HttpStatus.OK.value())
+                .responseMessage(
+                        "Vendor Approved Successfully")
+                .success(true)
+                .responseData(response)
+                .build();
     }
 }

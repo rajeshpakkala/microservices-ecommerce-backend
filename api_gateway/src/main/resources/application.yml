@@ -8,10 +8,20 @@ spring:
   cloud:
     gateway:
       routes:
-        - id: test-service
-          uri: https://httpbin.org
+
+        # AUTH SERVICE
+        - id: auth-service
+          uri: lb://AUTH-SERVICE
           predicates:
-            - Path=/test/**
+            - Path=/ecommerce/api/auth/**
+
+        # PRODUCT SERVICE
+        - id: product-service
+          uri: lb://PRODUCT-SERVICE
+          predicates:
+            - Path=/ecommerce/api/products/**
+jwt:
+  secret: mysecretkeymysecretkeymysecretkey123456
 
 eureka:
   client:

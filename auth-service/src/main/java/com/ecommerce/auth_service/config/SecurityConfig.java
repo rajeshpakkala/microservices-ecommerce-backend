@@ -35,7 +35,7 @@ public class SecurityConfig {
 
                         // PUBLIC APIS
                         .requestMatchers(
-                                "/ecommerce/api/auth/register",
+                                "/ecommerce/api/auth/register/**","/ecommerce/api/auth/register/vendor",
                                 "/ecommerce/api/auth/login",
                                 "/ecommerce/api/auth/verify",
                                 "/ecommerce/api/auth/verify-otp"
@@ -48,6 +48,11 @@ public class SecurityConfig {
                         // USER APIS
                         .requestMatchers("/user/**")
                         .hasAnyRole("CUSTOMER", "ADMIN")
+                        .requestMatchers("/vendor/**")
+                        .hasRole("VENDOR")
+
+                        .requestMatchers("/customer/**")
+                        .hasRole("CUSTOMER")
 
                         // EVERYTHING ELSE
                         .anyRequest()

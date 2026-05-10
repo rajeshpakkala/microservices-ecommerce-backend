@@ -2,7 +2,8 @@ package com.ecommerce.auth_service.controller;
 
 import com.ecommerce.auth_service.dto.*;
 import com.ecommerce.auth_service.service.AuthService;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -16,17 +17,44 @@ public class AuthController {
     }
 
     // REGISTER
-    @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthResponse>> register(
+    // CUSTOMER REGISTER
+    @PostMapping("/register/customer")
+    public ResponseEntity<ApiResponse<AuthResponse>>
+    registerCustomer(
             @RequestBody RegisterRequest request) {
 
         return ResponseEntity.ok(
-                service.register(request));
+                service.registerCustomer(request));
+    }
+
+    // VENDOR REGISTER
+    @PostMapping("/register/vendor")
+    public ResponseEntity<ApiResponse<AuthResponse>>
+    registerVendor(
+            @RequestBody RegisterRequest request) {
+
+        return ResponseEntity.ok(
+                service.registerVendor(request));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/admin/approve-vendor/{id}")
+    public ResponseEntity<
+            ApiResponse<VendorApprovalResponse>>
+    approveVendor(
+            @PathVariable Long id) {
+
+        ApiResponse<VendorApprovalResponse> response =
+                service.approveVendor(id);
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(response);
     }
 
     // LOGIN -> SEND OTP
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<String>> login(
+    public ResponseEntity<ApiResponse<AuthResponse>> login(
             @RequestBody AuthRequest request) {
 
         return ResponseEntity.ok(
