@@ -31,6 +31,10 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
 
+                // ---- INTERNAL SERVICE-TO-SERVICE (no auth needed) ----
+                .requestMatchers("/ecommerce/api/products/internal/**")
+                    .permitAll()
+
                 // ---- VENDOR-SPECIFIC URL PATTERNS (specific before generic) ----
                 .requestMatchers(HttpMethod.GET, "/ecommerce/api/products/my-products")
                     .hasRole("VENDOR")
