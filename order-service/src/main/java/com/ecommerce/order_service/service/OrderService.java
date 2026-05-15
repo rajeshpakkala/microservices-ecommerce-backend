@@ -4,7 +4,10 @@ import com.ecommerce.order_service.dto.*;
 import com.ecommerce.order_service.entity.Order;
 import com.ecommerce.order_service.entity.OrderItem;
 import com.ecommerce.order_service.enums.OrderStatus;
+import com.ecommerce.order_service.event.OrderEvent;
+import com.ecommerce.order_service.event.OrderItemEvent;
 import com.ecommerce.order_service.feign.ProductServiceClient;
+import com.ecommerce.order_service.kafka.OrderEventProducer;
 import com.ecommerce.order_service.repository.OrderItemRepository;
 import com.ecommerce.order_service.repository.OrderRepository;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,13 +24,16 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final ProductServiceClient productServiceClient;
+    private final OrderEventProducer orderEventProducer;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
-                        ProductServiceClient productServiceClient) {
+                        ProductServiceClient productServiceClient,
+                        OrderEventProducer orderEventProducer) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.productServiceClient = productServiceClient;
+        this.orderEventProducer = orderEventProducer;
     }
 
     // ===================== CUSTOMER OPERATIONS =====================
@@ -97,16 +103,20 @@ public class OrderService {
         List<OrderItem> savedItems = orderItemRepository.saveAll(orderItems);
         savedOrder.setItems(savedItems);
 
-        // Step 4: Deduct stock via Feign (sync - Kafka will replace this in Phase 2)
-        for (OrderItem item : savedItems) {
-            try {
-                productServiceClient.deductStock(item.getProductId(), item.getQuantity());
-            } catch (Exception e) {
-                // Log warning — Kafka-based compensation will handle this properly in Phase 2
-                System.err.println("[WARNING] Stock deduction failed for product "
-                        + item.getProductId() + ": " + e.getMessage());
-            }
-        }
+        // Step 4: Publish ORDER_PLACED event — Product Service will deduct stock async via Kafka
+        List<OrderItemEvent> eventItems = savedItems.stream()
+                .map(item -> OrderItemEvent.builder()
+                        .productId(item.getProductId())
+                        .quantity(item.getQuantity())
+                        .build())
+                .toList();
+
+        orderEventProducer.publish(OrderEvent.builder()
+                .orderId(savedOrder.getId())
+                .eventType("ORDER_PLACED")
+                .customerId(customerId)
+                .items(eventItems)
+                .build());
 
         return ApiResponse.<OrderResponse>builder()
                 .responseCode(201)
@@ -169,6 +179,21 @@ public class OrderService {
 
         order.setStatus(OrderStatus.CANCELLED);
         Order saved = orderRepository.save(order);
+
+        // Publish ORDER_CANCELLED — Product Service will restore stock async via Kafka
+        List<OrderItemEvent> eventItems = saved.getItems().stream()
+                .map(item -> OrderItemEvent.builder()
+                        .productId(item.getProductId())
+                        .quantity(item.getQuantity())
+                        .build())
+                .toList();
+
+        orderEventProducer.publish(OrderEvent.builder()
+                .orderId(saved.getId())
+                .eventType("ORDER_CANCELLED")
+                .customerId(customerId)
+                .items(eventItems)
+                .build());
 
         return ApiResponse.<OrderResponse>builder()
                 .responseCode(200)

@@ -20,6 +20,14 @@ eureka:
     service-url:
       defaultZone: http://localhost:8761/eureka
 
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
 # Direct URL — remove this when Eureka is running with all services
 product:
   service:
