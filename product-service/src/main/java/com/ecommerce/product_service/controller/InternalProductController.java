@@ -57,4 +57,18 @@ public class InternalProductController {
 
         return ResponseEntity.ok().build();
     }
+
+    @PostMapping("/{id}/restore-stock")
+    public ResponseEntity<Void> restoreStock(@PathVariable Long id,
+                                             @RequestParam int quantity) {
+
+        Product product = productRepository.findById(id)
+                .orElseThrow(() ->
+                        new NoSuchElementException("Product not found with id: " + id));
+
+        product.setStock(product.getStock() + quantity);
+        productRepository.save(product);
+
+        return ResponseEntity.ok().build();
+    }
 }

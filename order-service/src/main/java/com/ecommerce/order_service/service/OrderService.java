@@ -10,6 +10,7 @@ import com.ecommerce.order_service.feign.ProductServiceClient;
 import com.ecommerce.order_service.kafka.OrderEventProducer;
 import com.ecommerce.order_service.repository.OrderItemRepository;
 import com.ecommerce.order_service.repository.OrderRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+@Slf4j
 @Service
 public class OrderService {
 
@@ -50,7 +52,7 @@ public class OrderService {
         List<OrderItem> orderItems = new ArrayList<>();
         double totalAmount = 0.0;
 
-        // Step 1: Validate all items via Feign before creating order
+        // Step 1: Validate all items via Feign — no side effects yet
         for (OrderItemRequest itemRequest : request.getItems()) {
 
             if (itemRequest.getQuantity() <= 0) {
@@ -85,7 +87,21 @@ public class OrderService {
                     .build());
         }
 
-        // Step 2: Save order
+        // Step 2: Deduct stock via Feign — compensate already-deducted items if any fail
+        List<OrderItem> deducted = new ArrayList<>();
+        try {
+            for (OrderItem item : orderItems) {
+                productServiceClient.deductStock(item.getProductId(), item.getQuantity());
+                deducted.add(item);
+            }
+        } catch (Exception e) {
+            for (OrderItem item : deducted) {
+                productServiceClient.restoreStock(item.getProductId(), item.getQuantity());
+            }
+            throw new IllegalArgumentException("Stock deduction failed: " + e.getMessage());
+        }
+
+        // Step 3: Save order
         Order order = Order.builder()
                 .customerId(customerId)
                 .status(OrderStatus.PENDING)
@@ -96,14 +112,14 @@ public class OrderService {
 
         Order savedOrder = orderRepository.save(order);
 
-        // Step 3: Save order items linked to order
+        // Step 4: Save order items linked to order
         for (OrderItem item : orderItems) {
             item.setOrder(savedOrder);
         }
         List<OrderItem> savedItems = orderItemRepository.saveAll(orderItems);
         savedOrder.setItems(savedItems);
 
-        // Step 4: Publish ORDER_PLACED event — Product Service will deduct stock async via Kafka
+        // Step 5: Publish ORDER_PLACED event to Kafka — for notifications/analytics
         List<OrderItemEvent> eventItems = savedItems.stream()
                 .map(item -> OrderItemEvent.builder()
                         .productId(item.getProductId())
@@ -115,6 +131,7 @@ public class OrderService {
                 .orderId(savedOrder.getId())
                 .eventType("ORDER_PLACED")
                 .customerId(customerId)
+                .totalAmount(savedOrder.getTotalAmount())
                 .items(eventItems)
                 .build());
 
@@ -180,7 +197,12 @@ public class OrderService {
         order.setStatus(OrderStatus.CANCELLED);
         Order saved = orderRepository.save(order);
 
-        // Publish ORDER_CANCELLED — Product Service will restore stock async via Kafka
+        // Restore stock via Feign — immediate and consistent
+        for (OrderItem item : saved.getItems()) {
+            productServiceClient.restoreStock(item.getProductId(), item.getQuantity());
+        }
+
+        // Publish ORDER_CANCELLED event to Kafka — for notifications/analytics
         List<OrderItemEvent> eventItems = saved.getItems().stream()
                 .map(item -> OrderItemEvent.builder()
                         .productId(item.getProductId())
@@ -192,6 +214,7 @@ public class OrderService {
                 .orderId(saved.getId())
                 .eventType("ORDER_CANCELLED")
                 .customerId(customerId)
+                .totalAmount(saved.getTotalAmount())
                 .items(eventItems)
                 .build());
 
@@ -234,6 +257,14 @@ public class OrderService {
         order.setStatus(OrderStatus.CONFIRMED);
         Order saved = orderRepository.save(order);
 
+        orderEventProducer.publish(OrderEvent.builder()
+                .orderId(saved.getId())
+                .eventType("ORDER_CONFIRMED")
+                .customerId(saved.getCustomerId())
+                .totalAmount(saved.getTotalAmount())
+                .items(List.of())
+                .build());
+
         return ApiResponse.<OrderResponse>builder()
                 .responseCode(200)
                 .responseMessage("Order confirmed successfully")
@@ -253,6 +284,14 @@ public class OrderService {
 
         order.setStatus(OrderStatus.SHIPPED);
         Order saved = orderRepository.save(order);
+
+        orderEventProducer.publish(OrderEvent.builder()
+                .orderId(saved.getId())
+                .eventType("ORDER_SHIPPED")
+                .customerId(saved.getCustomerId())
+                .totalAmount(saved.getTotalAmount())
+                .items(List.of())
+                .build());
 
         return ApiResponse.<OrderResponse>builder()
                 .responseCode(200)
@@ -303,6 +342,14 @@ public class OrderService {
         order.setStatus(OrderStatus.DELIVERED);
         Order saved = orderRepository.save(order);
 
+        orderEventProducer.publish(OrderEvent.builder()
+                .orderId(saved.getId())
+                .eventType("ORDER_DELIVERED")
+                .customerId(saved.getCustomerId())
+                .totalAmount(saved.getTotalAmount())
+                .items(List.of())
+                .build());
+
         return ApiResponse.<OrderResponse>builder()
                 .responseCode(200)
                 .responseMessage("Order marked as delivered")
@@ -321,6 +368,14 @@ public class OrderService {
 
         order.setStatus(OrderStatus.CANCELLED);
         Order saved = orderRepository.save(order);
+
+        orderEventProducer.publish(OrderEvent.builder()
+                .orderId(saved.getId())
+                .eventType("ORDER_CANCELLED")
+                .customerId(saved.getCustomerId())
+                .totalAmount(saved.getTotalAmount())
+                .items(List.of())
+                .build());
 
         return ApiResponse.<OrderResponse>builder()
                 .responseCode(200)
@@ -343,6 +398,61 @@ public class OrderService {
                 .success(true)
                 .responseData(orders)
                 .build();
+    }
+
+    // ===================== INTERNAL (service-to-service) =====================
+
+    public OrderInternalResponse getOrderInternal(Long id) {
+        Order order = findOrderById(id);
+        return OrderInternalResponse.builder()
+                .id(order.getId())
+                .customerId(order.getCustomerId())
+                .totalAmount(order.getTotalAmount())
+                .status(order.getStatus().name())
+                .build();
+    }
+
+    @Transactional
+    public void confirmOrderInternal(Long id) {
+        Order order = findOrderById(id);
+        if (order.getStatus() != OrderStatus.PENDING) {
+            log.warn("confirmOrderInternal: order {} is already {}", id, order.getStatus());
+            return;
+        }
+        order.setStatus(OrderStatus.CONFIRMED);
+        Order saved = orderRepository.save(order);
+        orderEventProducer.publish(OrderEvent.builder()
+                .orderId(saved.getId())
+                .eventType("ORDER_CONFIRMED")
+                .customerId(saved.getCustomerId())
+                .totalAmount(saved.getTotalAmount())
+                .items(List.of())
+                .build());
+        log.info("Order {} confirmed via payment success", id);
+    }
+
+    @Transactional
+    public void cancelOrderInternal(Long id) {
+        Order order = findOrderById(id);
+        if (order.getStatus() != OrderStatus.PENDING) {
+            log.warn("cancelOrderInternal: order {} is already {}", id, order.getStatus());
+            return;
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        Order saved = orderRepository.save(order);
+
+        for (OrderItem item : saved.getItems()) {
+            productServiceClient.restoreStock(item.getProductId(), item.getQuantity());
+        }
+
+        orderEventProducer.publish(OrderEvent.builder()
+                .orderId(saved.getId())
+                .eventType("ORDER_CANCELLED")
+                .customerId(saved.getCustomerId())
+                .totalAmount(saved.getTotalAmount())
+                .items(List.of())
+                .build());
+        log.info("Order {} cancelled and stock restored via payment failure", id);
     }
 
     // ===================== HELPERS =====================

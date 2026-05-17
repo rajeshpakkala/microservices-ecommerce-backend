@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\royal\\\\OneDrive\\\\Desktop\\\\microservices-ecommerce-backend\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\royal\\\\OneDrive\\\\Desktop\\\\microservices-ecommerce-backend\" -Recurse -Directory)",
+      "Bash(Select-Object -First 20 FullName)",
+      "Bash(Get-ChildItem -Recurse -Path \"C:\\\\Users\\\\royal\\\\OneDrive\\\\Desktop\\\\microservices-ecommerce-backend\\\\auth-service\\\\src\\\\main\\\\java\\\\com\\\\ecommerce\\\\auth_service\" -File)",
+      "Bash(Select-Object FullName)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Java\\\\jdk-21\"; cd \"C:\\\\Users\\\\royal\\\\OneDrive\\\\Desktop\\\\microservices-ecommerce-backend\\\\product-service\"; .\\\\mvnw.cmd clean package -DskipTests 2>&1)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Java\\\\jdk-21\"; cd \"C:\\\\Users\\\\royal\\\\OneDrive\\\\Desktop\\\\microservices-ecommerce-backend\\\\product-service\"; Start-Process -FilePath \"java\" -ArgumentList \"-jar\", \"target\\\\product-service-0.0.1-SNAPSHOT.jar\" -RedirectStandardOutput \"C:\\\\Users\\\\royal\\\\product-service.log\" -RedirectStandardError \"C:\\\\Users\\\\royal\\\\product-service-err.log\" -NoNewWindow; Start-Sleep -Seconds 20; Get-Content \"C:\\\\Users\\\\royal\\\\product-service.log\" -Tail 30)",
+      "PowerShell(Copy-Item *)",
+      "Bash(Get-ChildItem -Recurse -Filter \"*.java\")",
+      "Bash(Select-String -Pattern \"FeignClient|@FeignClient\")",
+      "Bash(Select-Object -ExpandProperty Path)",
+      "Bash(Sort-Object -Unique)",
+      "Bash(xargs grep -l \"FeignClient\")",
+      "Bash(xargs grep -l \"feign\")",
+      "Bash(xargs grep -l \"internal\")",
+      "Bash(xargs grep -l \"ProductDetailsResponse\")",
+      "Bash(xargs grep -l \"kafka\\\\|rabbitmq\\\\|redis\\\\|payment\\\\|notification\\\\|inventory\")",
+      "PowerShell(New-Item *)"
+    ]
+  }
+}

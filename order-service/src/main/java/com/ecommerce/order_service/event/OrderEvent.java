@@ -13,7 +13,8 @@ import java.util.List;
 @Builder
 public class OrderEvent {
     private Long orderId;
-    private String eventType;   // ORDER_PLACED | ORDER_CANCELLED
+    private String eventType;   // ORDER_PLACED | ORDER_CONFIRMED | ORDER_SHIPPED | ORDER_DELIVERED | ORDER_CANCELLED
     private String customerId;
+    private double totalAmount;
     private List<OrderItemEvent> items;
 }

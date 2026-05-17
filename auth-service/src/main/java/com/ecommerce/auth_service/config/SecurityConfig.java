@@ -41,6 +41,9 @@ public class SecurityConfig {
                                 "/ecommerce/api/auth/verify-otp"
                         ).permitAll()
 
+                        // INTERNAL (service-to-service, no auth)
+                        .requestMatchers("/ecommerce/api/auth/internal/**").permitAll()
+
                         // ADMIN APIS
                         .requestMatchers("/admin/**")
                         .hasRole("ADMIN")

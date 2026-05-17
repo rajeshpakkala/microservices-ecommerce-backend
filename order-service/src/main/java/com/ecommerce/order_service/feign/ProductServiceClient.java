@@ -15,4 +15,7 @@ public interface ProductServiceClient {
 
     @PostMapping("/ecommerce/api/products/internal/{id}/deduct-stock")
     void deductStock(@PathVariable("id") Long id, @RequestParam("quantity") int quantity);
+
+    @PostMapping("/ecommerce/api/products/internal/{id}/restore-stock")
+    void restoreStock(@PathVariable("id") Long id, @RequestParam("quantity") int quantity);
 }

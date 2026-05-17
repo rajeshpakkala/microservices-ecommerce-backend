@@ -1,0 +1,15 @@
+package com.ecommerce.notification_service.enums;
+
+public enum NotificationType {
+    ORDER_PLACED,
+    ORDER_CONFIRMED,
+    ORDER_SHIPPED,
+    ORDER_DELIVERED,
+    ORDER_CANCELLED,
+    PAYMENT_SUCCESS,
+    PAYMENT_FAILED,
+    SUBSCRIPTION_ACTIVATED,
+    SUBSCRIPTION_CHARGED,
+    SUBSCRIPTION_HALTED,
+    SUBSCRIPTION_CANCELLED
+}

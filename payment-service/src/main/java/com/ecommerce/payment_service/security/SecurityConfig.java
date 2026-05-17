@@ -1,4 +1,4 @@
-package com.ecommerce.order_service.security;
+package com.ecommerce.payment_service.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,33 +31,22 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
 
-                // ---- INTERNAL (service-to-service, no auth) ----
-                .requestMatchers("/ecommerce/api/orders/internal/**")
+                // Razorpay webhook — no auth (Razorpay server calls this)
+                .requestMatchers(HttpMethod.POST, "/ecommerce/api/payments/webhook")
                     .permitAll()
 
-                // ---- ADMIN URL PATTERNS ----
-                .requestMatchers("/ecommerce/api/orders/admin/**")
-                    .hasRole("ADMIN")
+                // Public plan browsing — no auth needed
+                .requestMatchers(HttpMethod.GET, "/ecommerce/api/subscriptions/plans")
+                    .permitAll()
 
-                // ---- VENDOR URL PATTERNS ----
-                .requestMatchers("/ecommerce/api/orders/vendor/**")
-                    .hasRole("VENDOR")
-                .requestMatchers(HttpMethod.PUT, "/ecommerce/api/orders/*/confirm")
-                    .hasRole("VENDOR")
-                .requestMatchers(HttpMethod.PUT, "/ecommerce/api/orders/*/ship")
-                    .hasRole("VENDOR")
+                // Customer operations
+                .requestMatchers(HttpMethod.POST, "/ecommerce/api/payments/initiate")
+                    .hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.POST, "/ecommerce/api/payments/verify")
+                    .hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.GET, "/ecommerce/api/payments/order/**")
+                    .hasAnyRole("CUSTOMER", "ADMIN")
 
-                // ---- CUSTOMER URL PATTERNS ----
-                .requestMatchers(HttpMethod.POST, "/ecommerce/api/orders")
-                    .hasRole("CUSTOMER")
-                .requestMatchers(HttpMethod.GET, "/ecommerce/api/orders/my-orders")
-                    .hasRole("CUSTOMER")
-                .requestMatchers(HttpMethod.GET, "/ecommerce/api/orders/*")
-                    .hasAnyRole("CUSTOMER", "VENDOR", "ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/ecommerce/api/orders/*/cancel")
-                    .hasRole("CUSTOMER")
-
-                // ---- EVERYTHING ELSE ----
                 .anyRequest().authenticated()
             )
 

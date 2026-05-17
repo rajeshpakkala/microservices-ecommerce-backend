@@ -1,6 +1,7 @@
 package com.ecommerce.order_service.controller;
 
 import com.ecommerce.order_service.dto.ApiResponse;
+import com.ecommerce.order_service.dto.OrderInternalResponse;
 import com.ecommerce.order_service.dto.OrderRequest;
 import com.ecommerce.order_service.dto.OrderResponse;
 import com.ecommerce.order_service.enums.OrderStatus;
@@ -20,6 +21,25 @@ public class OrderController {
 
     public OrderController(OrderService orderService) {
         this.orderService = orderService;
+    }
+
+    // ===================== INTERNAL APIs (service-to-service, no auth) =====================
+
+    @GetMapping("/internal/{id}")
+    public ResponseEntity<OrderInternalResponse> getOrderInternal(@PathVariable Long id) {
+        return ResponseEntity.ok(orderService.getOrderInternal(id));
+    }
+
+    @PostMapping("/internal/{id}/confirm")
+    public ResponseEntity<Void> confirmOrderInternal(@PathVariable Long id) {
+        orderService.confirmOrderInternal(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/internal/{id}/cancel")
+    public ResponseEntity<Void> cancelOrderInternal(@PathVariable Long id) {
+        orderService.cancelOrderInternal(id);
+        return ResponseEntity.ok().build();
     }
 
     // ===================== CUSTOMER APIs =====================
